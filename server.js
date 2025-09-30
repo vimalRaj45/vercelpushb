@@ -46,13 +46,22 @@ app.post("/send", async (req, res) => {
   const { title, message } = req.body;
   try {
     const result = await pool.query("SELECT sub FROM subscriptions");
+
     result.rows.forEach(({ sub }) => {
-      const subscription = JSON.parse(sub);
+      let subscription;
+      try {
+        subscription = typeof sub === "string" ? JSON.parse(sub) : sub;
+      } catch (err) {
+        console.error("Failed to parse subscription:", err);
+        return; // skip this subscription
+      }
+
       webpush
         .sendNotification(subscription, JSON.stringify({ title, message }))
         .catch((err) => console.error("Push error:", err));
     });
 
+    // Save notification to history
     await pool.query(
       "INSERT INTO notifications (title, message) VALUES ($1, $2)",
       [title, message]
@@ -64,6 +73,7 @@ app.post("/send", async (req, res) => {
     res.status(500).json({ error: "Failed to send notifications" });
   }
 });
+
 
 
 
