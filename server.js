@@ -45,15 +45,14 @@ app.post("/subscribe", async (req, res) => {
 app.post("/send", async (req, res) => {
   const { title, message } = req.body;
   try {
-    // Fetch all subscriptions
     const result = await pool.query("SELECT sub FROM subscriptions");
     result.rows.forEach(({ sub }) => {
+      const subscription = JSON.parse(sub);
       webpush
-        .sendNotification(sub, JSON.stringify({ title, message }))
+        .sendNotification(subscription, JSON.stringify({ title, message }))
         .catch((err) => console.error("Push error:", err));
     });
 
-    // Save notification to history
     await pool.query(
       "INSERT INTO notifications (title, message) VALUES ($1, $2)",
       [title, message]
@@ -65,6 +64,7 @@ app.post("/send", async (req, res) => {
     res.status(500).json({ error: "Failed to send notifications" });
   }
 });
+
 
 
 app.get("/notifications", async (req, res) => {
