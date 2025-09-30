@@ -5,8 +5,9 @@ import pkg from "pg";
 import webpush from "web-push";
 
 const { Pool } = pkg;
-
 const app = express();
+
+// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -16,25 +17,28 @@ const pool = new Pool({
     "postgresql://neondb_owner:npg_ZS1hyJvEkRL9@ep-holy-pond-adhxy251-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
 });
 
-// 🔑 VAPID keys and email
+// 🔑 VAPID keys
 const publicVapidKey =
   "BPrZcFrQ6-F-5Rc34982D_-qrpIXiHLoYL3piFJcdh5ub5yrqFWicEZ2a2vyuxYeKy8VZl_KiD3vMOiFLmTtAnE";
 const privateVapidKey =
   "N2Gq5IqGWH2mRC419hfwCD-F7eMkVuf2PkUW2NlhvS8";
 
 webpush.setVapidDetails(
-  "mailto:vimalraj5207@gmail.com", // your email
+  "mailto:vimalraj5207@gmail.com",
   publicVapidKey,
   privateVapidKey
 );
 
-// 📌 Subscribe endpoint
+// -------------------------
+// Subscribe endpoint
+// -------------------------
 app.post("/subscribe", async (req, res) => {
   const subscription = req.body;
   try {
-    await pool.query("INSERT INTO subscriptions (sub) VALUES ($1)", [
-      JSON.stringify(subscription),
-    ]);
+    await pool.query(
+      "INSERT INTO subscriptions (sub) VALUES ($1) ON CONFLICT DO NOTHING",
+      [JSON.stringify(subscription)]
+    );
     res.status(201).json({ message: "Subscription saved" });
   } catch (err) {
     console.error("DB Error:", err);
@@ -42,6 +46,9 @@ app.post("/subscribe", async (req, res) => {
   }
 });
 
+// -------------------------
+// Send notification endpoint
+// -------------------------
 app.post("/send", async (req, res) => {
   const { title, message } = req.body;
   try {
@@ -53,7 +60,7 @@ app.post("/send", async (req, res) => {
         subscription = typeof sub === "string" ? JSON.parse(sub) : sub;
       } catch (err) {
         console.error("Failed to parse subscription:", err);
-        return; // skip this subscription
+        return; // skip invalid subscription
       }
 
       webpush
@@ -74,21 +81,26 @@ app.post("/send", async (req, res) => {
   }
 });
 
-
-
-
+// -------------------------
+// Fetch notification history
+// -------------------------
 app.get("/notifications", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM notifications ORDER BY sent_at DESC");
+    const result = await pool.query(
+      "SELECT * FROM notifications ORDER BY sent_at DESC"
+    );
     res.json(result.rows);
   } catch (err) {
+    console.error("Fetch Error:", err);
     res.status(500).json({ error: "Failed to fetch notifications" });
   }
 });
 
-
-
-app.listen(5000, () => {
-  console.log("🚀 Backend running at http://localhost:5000");
+// -------------------------
+// Start server
+// -------------------------
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Backend running at http://localhost:${PORT}`);
   console.log("🔑 Public VAPID Key:", publicVapidKey);
 });
